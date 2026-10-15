@@ -13,6 +13,17 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 40MB
+recon:
+  kafka:
+    enabled: false
+    topic: txn-events
+spring.kafka:
+  bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+  consumer:
+    group-id: recon-engine
+    auto-offset-reset: earliest
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 management:
   endpoints:
     web:

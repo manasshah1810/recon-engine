@@ -42,6 +42,20 @@ curl http://localhost:8080/api/runs/1/breaks
 With those samples: 3 exact matches, 1 tolerance match (INV-1002), 1 unmatched ledger line (INV-1004) and
 1 unmatched bank line (INV-1006).
 
+## Streaming ingestion (Kafka)
+
+Besides file upload, transactions can arrive as JSON events on a Kafka topic (`txn-events`, enabled with
+`recon.kafka.enabled=true`, broker from `KAFKA_BOOTSTRAP`):
+
+```json
+{"streamId":"2026-03-02","eventId":"e1","side":"A","reference":"INV-1001","amount":"1500.00","currency":"USD","date":"2026-03-02"}
+```
+
+Events are staged in `txn_event`. Delivery is at-least-once, so ingestion is idempotent on
+`(streamId, eventId)`; redelivered events are ignored, and malformed messages are logged and skipped so they
+cannot block a partition. `POST /api/streams/{streamId}/reconcile` then reconciles everything received for
+that stream. `POST /api/streams/events` feeds the same ingestion path over HTTP.
+
 ## Run
 
 ```bash
@@ -57,8 +71,8 @@ Requires JDK 17+ and Maven 3.9+.
 mvn verify
 ```
 
-27 tests: matcher unit tests (duplicates, tolerance boundaries, currency, determinism, 100,000-line case),
-CSV parser tests (quoting, BOM, line-numbered errors), and API integration tests with MockMvc on H2.
+31 tests: matcher unit tests (duplicates, tolerance boundaries, currency, determinism, 100,000-line case),
+CSV parser tests (quoting, BOM, line-numbered errors), API integration tests with MockMvc on H2, and Kafka ingestion tests on an embedded broker (no Docker needed).
 Flyway runs the real migration in every integration test.
 
 ## Design notes
@@ -72,5 +86,7 @@ Flyway runs the real migration in every integration test.
 ## Limitations (honest list)
 
 - Matching is reference-based. Lines without a shared reference are never paired, even if amount and date agree.
+- Kafka: no dead-letter topic, and only tested on an embedded broker (not against a real cluster). No streaming-time
+  windows: a stream is reconciled on request.
 - No authentication, no multi-tenancy, no many-to-one matching. Tests run against H2; the PostgreSQL profile and
   Docker image are configured but not covered by automated tests in CI.
